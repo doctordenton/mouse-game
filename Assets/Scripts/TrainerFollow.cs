@@ -6,6 +6,10 @@ public class TrainerFollow : MonoBehaviour
 {
     public float moveSpeed = 3f;
     public float stopDistance = 1.5f;
+    public float startBuffer = 0.5f;   // mouse must get this much further than stopDistance before he starts walking again
+    public float flipBuffer = 0.3f;    // mouse must be this far left/right of him before he turns around
+    public float catchUp = 4f;         // how quickly he speeds up the further behind he is (higher = snappier)
+    bool isMoving;                     // remembered between frames so he doesn't flicker on the line
     Animator myAnimator;
     SpriteRenderer mySpriteRenderer;
 
@@ -23,19 +27,39 @@ public class TrainerFollow : MonoBehaviour
         mouseLocation.z = 0;
         // distance is the distance between trainers position and mouse location
         float distance = Vector2.Distance(transform.position, mouseLocation);
-        // if our distance from the cursor is greater than our stop distance, we are moving, set ourselves as moving
-        bool isMoving = distance > stopDistance;
+        // stop when we get inside stopDistance, but only START again once the mouse is a bit further away.
+        // that gap stops him flickering between walk and idle when the mouse sits right on the line
+        // (the 0.05 is "close enough": he slows down as he arrives, so he'd never land exactly on it)
+        if (isMoving && distance <= stopDistance + 0.05f)
+        {
+            isMoving = false;
+        }
+        else if (!isMoving && distance > stopDistance + startBuffer)
+        {
+            isMoving = true;
+        }
 
         if (isMoving)
-        { // if we're moving, we're moving towards the mouse position 
-            transform.position = Vector2.MoveTowards(transform.position, mouseLocation, moveSpeed * Time.deltaTime);
+        { // if we're moving, we're moving towards the mouse position
+            // the further past stopDistance the mouse is, the faster he walks (up to moveSpeed).
+            // so if you drag slowly, he follows slowly and keeps walking instead of dash-stop-dash-stop
+            float speed = Mathf.Min(moveSpeed, (distance - stopDistance) * catchUp);
+            transform.position = Vector2.MoveTowards(transform.position, mouseLocation, speed * Time.deltaTime);
 
         }
 
         // if we are moving, tell the animator we're moving
         myAnimator.SetBool("isMoving", isMoving);
-        // if the mouse's x position is greater than the player's position, turn the left facing sprite  -> facing right
-        mySpriteRenderer.flipX = mouseLocation.x > transform.position.x;
+        // if the mouse is clearly to the right, face right; clearly to the left, face left.
+        // when it's almost straight above/below him, keep facing the same way so he doesn't flicker
+        if (mouseLocation.x > transform.position.x + flipBuffer)
+        {
+            mySpriteRenderer.flipX = true;    // left facing sprite -> facing right
+        }
+        else if (mouseLocation.x < transform.position.x - flipBuffer)
+        {
+            mySpriteRenderer.flipX = false;   // facing left
+        }
 
     }
 }
